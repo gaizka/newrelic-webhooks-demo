@@ -2,6 +2,9 @@ require 'rubygems'
 require 'sequel'
 require 'sinatra'
 require 'json'
+require 'ipaddr'
+
+NEW_RELIC_IP = IPAddr.new("50.31.164.0/24")
 
 configure do
   set :root, File.dirname(__FILE__)
@@ -14,15 +17,19 @@ require './alert'
 
 helpers do
   def protected!
-    return if authorized?
+    return if http_authorized? || ip_whitelisted?
     headers['WWW-Authenticate'] = 'Basic realm="Restricted Area"'
     halt 401, "Not authorized\n"
   end
 
-  def authorized?
+  def http_authorized?
     auth ||=  Rack::Auth::Basic::Request.new(request.env)
     auth.provided? and auth.basic? and auth.credentials and auth.credentials ==
       [ENV['HTTP_AUTH_USER'] || 'fooooo', ENV["HTTP_AUTH_PASSWORD"] || 'baaaaaar']
+  end
+
+  def ip_whitelisted?
+    request.ip == "127.0.0.1" || NEW_RELIC_IP.include?(IPAddr.new(request.ip))
   end
 end
 
